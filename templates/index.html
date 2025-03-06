@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo da Cobrinha</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        canvas { background: black; display: block; margin: auto; }
+        #start-message { font-size: 20px; color: red; margin-top: 20px; }
+        #scoreboard { margin-top: 20px; }
+        table { margin: auto; border-collapse: collapse; width: 50%; }
+        th, td { border: 1px solid white; padding: 8px; text-align: center; }
+        th { background-color: #333; color: white; }
+        td { background-color: #444; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Jogo da Cobrinha</h1>
+    <p id="start-message">Pressione ENTER para começar</p>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <h3>Pontuação: <span id="score">0</span></h3>
+
+    <div id="scoreboard">
+        <h2>Ranking</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Jogador</th>
+                    <th>Pontuação</th>
+                </tr>
+            </thead>
+            <tbody id="score-table-body">
+                <!-- Os scores serão inseridos aqui pelo JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const startMessage = document.getElementById("start-message");
+        const scoreTableBody = document.getElementById("score-table-body");
+
+        let gameStarted = false;
+        let snake = [{ x: 200, y: 200 }];
+        let direction = "RIGHT";
+        let food = { x: 100, y: 100 };
+        let score = 0;
+        let gameInterval;
+
+        document.addEventListener("keydown", event => {
+            if (!gameStarted && event.key === "Enter") {
+                startGame();
+            }
+
+            if (gameStarted) {
+                if (event.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
+                if (event.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+                if (event.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
+                if (event.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
+            }
+        });
+
+        function startGame() {
+            gameStarted = true;
+            startMessage.style.display = "none"; // Esconde a mensagem de início
+            gameInterval = setInterval(update, 100);
+        }
+
+        function update() {
+            let head = { ...snake[0] };
+            if (direction === "UP") head.y -= 20;
+            if (direction === "DOWN") head.y += 20;
+            if (direction === "LEFT") head.x -= 20;
+            if (direction === "RIGHT") head.x += 20;
+
+            if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height || snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+                clearInterval(gameInterval);
+                saveScore();
+                alert("Game Over! Pontuação: " + score);
+                location.reload();  // Recarrega a página para reiniciar
+            }
+
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                document.getElementById("score").innerText = score;
+                food = { x: Math.floor(Math.random() * 20) * 20, y: Math.floor(Math.random() * 20) * 20 };
+            } else {
+                snake.pop();
+            }
+
+            snake.unshift(head);
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "red";
+            ctx.fillRect(food.x, food.y, 20, 20);
+
+            ctx.fillStyle = "green";
+            snake.forEach(segment => ctx.fillRect(segment.x, segment.y, 20, 20));
+        }
+
+        function saveScore() {
+            let player = prompt("Digite seu nome:");
+            if (player) {
+                fetch("/scores", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ player, score })
+                }).then(res => res.json()).then(data => {
+                    console.log("Pontuação salva!", data);
+                    loadScores(); // Recarrega o ranking após salvar a pontuação
+                });
+            }
+        }
+
+        function loadScores() {
+            fetch("/scores")
+                .then(response => response.json())
+                .then(data => {
+                    scoreTableBody.innerHTML = "";  // Limpa a tabela antes de recarregar os dados
+                    data.forEach(score => {
+                        let row = `<tr><td>${score.player}</td><td>${score.score}</td></tr>`;
+                        scoreTableBody.innerHTML += row;
+                    });
+                });
+        }
+
+        // Carrega o ranking ao abrir a página
+        loadScores();
+    </script>
+</body>
+</html>
